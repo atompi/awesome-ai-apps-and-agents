@@ -1,14 +1,15 @@
-import streamlit as st
 import os
-import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
+
+import streamlit as st
+from crewai import LLM, Agent, Crew, Process, Task
 from dotenv import load_dotenv
-from crewai import Agent, Crew, Process, Task, LLM
 from pydantic import BaseModel
 from tools.financial_tools import YFinanceStockTool
 
 # Load environment variables
 load_dotenv()
+
 
 # Define Pydantic models for structured output
 class StockAnalysis(BaseModel):
@@ -23,22 +24,20 @@ class StockAnalysis(BaseModel):
     technical_indicators: dict
     fundamental_metrics: dict
 
+
 # Initialize SambaNova LLM
 @st.cache_resource
 def load_llm():
-    return LLM(
-        model="sambanova/Llama-4-Maverick-17B-128E-Instruct",
-        api_key=os.getenv("SAMBANOVA_API_KEY"),
-        temperature=0.3
-    )
+    return LLM(model=os.getenv("LLM_MODEL", "openai/THUDM/GLM-4-9B-0414"), temperature=0.3)
+
 
 # Create agents and tasks
 def create_agents_and_tasks(symbol: str):
     llm = load_llm()
-    
+
     # Initialize tools
     stock_tool = YFinanceStockTool()
-    
+
     # Stock Analysis Agent
     stock_analysis_agent = Agent(
         role="Wall Street Financial Analyst",
@@ -50,7 +49,7 @@ def create_agents_and_tasks(symbol: str):
         llm=llm,
         verbose=True,
         memory=True,
-        tools=[stock_tool]
+        tools=[stock_tool],
     )
 
     # Report Writing Agent
@@ -62,7 +61,7 @@ def create_agents_and_tasks(symbol: str):
                      You always maintain professional standards while making reports accessible and actionable.
                      You're known for your clear data presentation, trend analysis, and risk assessment capabilities.""",
         llm=llm,
-        verbose=True
+        verbose=True,
     )
 
     # Analysis Task
@@ -98,7 +97,7 @@ def create_agents_and_tasks(symbol: str):
            - Analyst recommendations
            - Key risk factors
 
-        IMPORTANT: 
+        IMPORTANT:
         - ALWAYS use the stock_data_tool to fetch real-time data
         - Begin your analysis with the latest price and 52-week data
         - Include specific dates for all price points
@@ -107,7 +106,7 @@ def create_agents_and_tasks(symbol: str):
         - Verify all numbers with live data
         - Compare current metrics with historical trends""",
         expected_output="A comprehensive analysis report with real-time data, including all specified metrics and clear section breakdowns",
-        agent=stock_analysis_agent
+        agent=stock_analysis_agent,
     )
 
     # Report Task
@@ -149,7 +148,7 @@ def create_agents_and_tasks(symbol: str):
         - Include risk disclaimers
         - Format in clean, readable markdown""",
         expected_output="A professionally formatted investment report in markdown, with clear sections, data tables, and visual indicators",
-        agent=report_writer_agent
+        agent=report_writer_agent,
     )
 
     # Create Crew
@@ -157,10 +156,11 @@ def create_agents_and_tasks(symbol: str):
         agents=[stock_analysis_agent, report_writer_agent],
         tasks=[analysis_task, report_task],
         process=Process.sequential,
-        verbose=True
+        verbose=True,
     )
 
     return crew
+
 
 # Streamlit UI
 st.set_page_config(page_title="Multi-Agent AI Financial Analyst", layout="wide")
@@ -170,23 +170,16 @@ st.title("🎯 Multi-Agent AI Financial Analyst")
 # Sidebar
 with st.sidebar:
     st.header("Configuration")
-    
+
     # API Key input
     api_key = st.text_input(
-        "SambaNova API Key",
-        type="password",
-        value=os.getenv("SAMBANOVA_API_KEY", ""),
-        help="Enter your SambaNova API key"
+        "SambaNova API Key", type="password", value=os.getenv("SAMBANOVA_API_KEY", ""), help="Enter your SambaNova API key"
     )
     if api_key:
         os.environ["SAMBANOVA_API_KEY"] = api_key
 
     # Stock Symbol input
-    symbol = st.text_input(
-        "Stock Symbol",
-        value="AAPL",
-        help="Enter a stock symbol (e.g., AAPL, GOOGL)"
-    ).upper()
+    symbol = st.text_input("Stock Symbol", value="AAPL", help="Enter a stock symbol (e.g., AAPL, GOOGL)").upper()
 
     # Analysis button
     analyze_button = st.button("Analyze Stock", type="primary")
@@ -215,14 +208,14 @@ if analyze_button:
 if st.session_state.analysis_complete and st.session_state.report:
     st.markdown("### Analysis Report")
     st.markdown(st.session_state.report)
-    
+
     # Download button
     st.download_button(
         label="Download Report",
         data=st.session_state.report,
         file_name=f"stock_analysis_{symbol}_{datetime.now().strftime('%Y%m%d')}.md",
-        mime="text/markdown"
+        mime="text/markdown",
     )
 
 # Footer
-st.markdown("---") 
+st.markdown("---")
