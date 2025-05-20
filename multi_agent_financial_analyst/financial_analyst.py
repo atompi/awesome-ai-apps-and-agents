@@ -28,7 +28,16 @@ class StockAnalysis(BaseModel):
 # Initialize SambaNova LLM
 @st.cache_resource
 def load_llm():
-    return LLM(model=os.getenv("LLM_MODEL", "openai/THUDM/GLM-4-9B-0414"), temperature=0.3)
+    if os.getenv("LLM_PROVIDER") == "openai":
+        return LLM(
+            model=os.getenv("OPENAI_MODEL", "openai/THUDM/GLM-4-9B-0414"),
+            temperature=0.3,
+        )
+    else:
+        return LLM(
+            model=os.getenv("OLLAMA_MODEL", "ollama/gemma3:27b-it-q8_0"),
+            base_url=os.getenv("OLLAMA_URL", "http://192.168.220.1:11434"),
+        )
 
 
 # Create agents and tasks
